@@ -3,6 +3,8 @@ use dialoguer::{theme::ColorfulTheme, FuzzySelect};
 use serde::Deserialize;
 use std::process::Command;
 use serde_json::Value;
+use walkdir::{DirEntry, WalkDir};
+use std::path::Path;
 
 fn clear_screen() {
     println!("\x1B[2J\x1B[1;1H");
@@ -30,10 +32,16 @@ impl Server {
 }
 
 fn main() {
-    let environment_selections = &[
-        "production",
-        "staging",
-    ];
+    let root_environment_dir = "/Users/stefan-hypr/Tools/mage-db-sync-databases/";
+
+    let walker = WalkDir::new(root_environment_dir).into_iter();
+    let mut environment_selections = vec![];
+    for entry in walker {
+        let dir_entry = entry.unwrap().to_owned();
+        if !dir_entry.path().to_str().unwrap().ends_with(".json") { continue; }
+
+        environment_selections.push(Path::new(dir_entry.path()).file_stem().unwrap().to_str().unwrap().to_owned());
+    }
 
     clear_screen();
 
@@ -44,10 +52,8 @@ fn main() {
         .interact()
         .unwrap();
 
-    let mut environment_filename = "/Users/stefan-hypr/Tools/mage-db-sync-databases/staging.json";
-    if environment_selections[environment_selection] == "production" {
-        environment_filename = "/Users/stefan-hypr/Tools/mage-db-sync-databases/production.json";
-    }
+    let selected_env = environment_selections[environment_selection].to_owned();
+    let environment_filename = format!("{root_environment_dir}{selected_env}.json");
 
     let file = fs::File::open(environment_filename)
         .expect("Unable to open file as read-only!");

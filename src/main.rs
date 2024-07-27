@@ -1,10 +1,27 @@
-use std::fs::File;
+use std::fs;
+use std::io::{Read, Write};
+use std::fs::{File, OpenOptions};
+use std::ops::Deref;
 use std::path::Path;
 use std::process::Command;
 use dialoguer::{FuzzySelect, theme::ColorfulTheme};
 use serde::Deserialize;
 use serde_json::Value;
+use toml::Table;
 use walkdir::{DirEntry, IntoIter, WalkDir};
+
+const CONFIG_PATH: &'static str = "~/.config/server/config.toml";
+fn first_time_setup() {
+    println!("Config file {} not found!", CONFIG_PATH);
+
+    fs::create_dir_all(shellexpand::tilde("~/.config/server/").to_string()).expect("Couldn't create directories");
+
+    let mut file = OpenOptions::new().write(true).create(true).open(shellexpand::tilde(CONFIG_PATH).to_string()).unwrap();
+    if let Err(e) = writeln!(file, "{}", "servers_dir = \"~/Tools/mage-db-sync-databases/\"") {
+        eprintln!("Couldn't write to file: {}", e);
+    }
+    println!("Created an example. Please update the file and run this command again.");
+}
 
 #[derive(Deserialize, Debug)]
 struct Server {
@@ -27,8 +44,16 @@ impl Server {
     }
 }
 
+
 fn main() {
-    let root_environment_dir: &str = "/Users/stefan-hypr/Tools/mage-db-sync-databases/";
+    if !Path::new(&shellexpand::tilde(CONFIG_PATH).to_string()).exists() {
+        first_time_setup();
+        return;
+    }
+
+    let config_values: Table = toml::from_str(&*fs::read_to_string(shellexpand::tilde(CONFIG_PATH).to_string()).unwrap()).unwrap();
+    let binding: String = shellexpand::tilde(config_values["servers_dir"].as_str().unwrap()).to_string();
+    let root_environment_dir: &str = binding.as_str();
 
     let walker: IntoIter = WalkDir::new(root_environment_dir).into_iter();
     let mut environment_selections: Vec<String> = vec![];
@@ -53,7 +78,7 @@ fn main() {
     let environment_filename: String = format!("{root_environment_dir}{selected_env}.json");
 
     let file: File = File::open(environment_filename)
-        .expect("Unable to open file as read-only!");
+        .expect("Unable to open environment file as read-only!");
     let json: Value = serde_json::from_reader(file)
         .expect("File is invalid JSON!");
     let databases = json.get("databases")

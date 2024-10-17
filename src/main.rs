@@ -1,16 +1,17 @@
-use std::fs;
-use std::io::{Read, Write};
-use std::fs::{File, OpenOptions};
-use std::ops::Deref;
-use std::path::Path;
-use std::process::Command;
-use dialoguer::{FuzzySelect, theme::ColorfulTheme};
+use dialoguer::{theme::ColorfulTheme, FuzzySelect};
 use serde::Deserialize;
 use serde_json::Value;
+use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::path::Path;
+use std::process::Command;
 use toml::Table;
 use walkdir::{DirEntry, IntoIter, WalkDir};
 
 const CONFIG_PATH: &'static str = "~/.config/server/config.toml";
+const DEFAULT_PORT: i64 = 22;
+
 fn first_time_setup() {
     println!("Config file {} not found!", CONFIG_PATH);
 
@@ -27,14 +28,14 @@ fn first_time_setup() {
 struct Server {
     username: String,
     server: String,
-    port: String,
+    port: i64,
 }
 
 impl Server {
     pub fn new(
         username: String,
         server: String,
-        port: String,
+        port: i64,
     ) -> Server {
         Server {
             username,
@@ -43,7 +44,6 @@ impl Server {
         }
     }
 }
-
 
 fn main() {
     if !Path::new(&shellexpand::tilde(CONFIG_PATH).to_string()).exists() {
@@ -87,11 +87,27 @@ fn main() {
     let mut stored_servers: Vec<Server> = vec![];
     let mut server_selections: Vec<String> = vec![];
     for database in databases.as_object().unwrap() {
+        // Parse the port
+        let port: i64 = match database.1.get("port").unwrap_or(&Value::from(DEFAULT_PORT)) {
+            // Handle strings
+            Value::String(v) => {
+                if v.is_empty() { // In case the string is empty for some reason
+                    DEFAULT_PORT
+                } else { // Handle an actual number inside the string
+                    v.to_string().parse().unwrap()
+                }
+            }
+            // Handle actual numbers
+            Value::Number(v) => v.as_i64().unwrap_or(DEFAULT_PORT),
+            // Use the default port in any other case
+            _ => { DEFAULT_PORT }
+        };
+
         stored_servers.push(
             Server::new(
                 database.1.get("username").unwrap().as_str().unwrap().to_string(),
                 database.1.get("server").unwrap().as_str().unwrap().to_string(),
-                database.1.get("port").unwrap_or(&Value::from("22")).as_str().unwrap_or("22").to_string(),
+                port,
             )
         );
         server_selections.push(database.0.to_owned());
@@ -107,13 +123,14 @@ fn main() {
 
     let username: String = stored_servers[server_selection].username.to_owned();
     let server: String = stored_servers[server_selection].server.to_owned();
-    let port: String = stored_servers[server_selection].port.to_owned();
+    let port: i64 = stored_servers[server_selection].port.to_owned();
     let username_server: String = format!("{username}@{server}");
-    // println!("{}", username_server);
+
+    println!("Connection string: ssh {} -p {}", username_server, port);
     Command::new("ssh")
         .arg(username_server)
         .arg("-p")
-        .arg(port)
+        .arg(port.to_string())
         .spawn().expect("Failed to execute ssh command")
         .wait().expect("Panic while running ssh command");
 }

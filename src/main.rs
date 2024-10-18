@@ -10,10 +10,10 @@ use toml::Table;
 use walkdir::{DirEntry, IntoIter, WalkDir};
 
 const CONFIG_PATH: &'static str = "~/.config/server/config.toml";
-const DEFAULT_PORT: i64 = 22;
+const DEFAULT_PORT: u16 = 22;
 
 fn first_time_setup() {
-    println!("Config file {} not found!", CONFIG_PATH);
+    println!("Config file {} not found, trying to create it.", CONFIG_PATH);
 
     fs::create_dir_all(shellexpand::tilde("~/.config/server/").to_string()).expect("Couldn't create directories");
 
@@ -28,14 +28,14 @@ fn first_time_setup() {
 struct Server {
     username: String,
     server: String,
-    port: i64,
+    port: u16,
 }
 
 impl Server {
     pub fn new(
         username: String,
         server: String,
-        port: i64,
+        port: u16,
     ) -> Server {
         Server {
             username,
@@ -88,7 +88,7 @@ fn main() {
     let mut server_selections: Vec<String> = vec![];
     for database in databases.as_object().unwrap() {
         // Parse the port
-        let port: i64 = match database.1.get("port").unwrap_or(&Value::from(DEFAULT_PORT)) {
+        let port: u16 = match database.1.get("port").unwrap_or(&Value::from(DEFAULT_PORT)) {
             // Handle strings
             Value::String(v) => {
                 if v.is_empty() { // In case the string is empty for some reason
@@ -98,7 +98,7 @@ fn main() {
                 }
             }
             // Handle actual numbers
-            Value::Number(v) => v.as_i64().unwrap_or(DEFAULT_PORT),
+            Value::Number(v) => v.as_i64().unwrap_or(DEFAULT_PORT as i64) as u16,
             // Use the default port in any other case
             _ => { DEFAULT_PORT }
         };
@@ -123,7 +123,7 @@ fn main() {
 
     let username: String = stored_servers[server_selection].username.to_owned();
     let server: String = stored_servers[server_selection].server.to_owned();
-    let port: i64 = stored_servers[server_selection].port.to_owned();
+    let port: u16 = stored_servers[server_selection].port.to_owned();
     let username_server: String = format!("{username}@{server}");
 
     println!("Connection string: ssh {} -p {}", username_server, port);

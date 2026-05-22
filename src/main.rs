@@ -72,7 +72,7 @@ fn main() {
         .default(0)
         .items(&environment_selections[..])
         .interact()
-        .unwrap();
+        .unwrap_or_else(|_| std::process::exit(130));
 
     let selected_env: String = environment_selections[environment_selection].to_owned();
     let environment_filename: String = format!("{root_environment_dir}{selected_env}.json");
@@ -119,7 +119,7 @@ fn main() {
         .max_length(10)
         .items(&server_selections[..])
         .interact()
-        .unwrap();
+        .unwrap_or_else(|_| std::process::exit(130));
 
     let username: String = stored_servers[server_selection].username.to_owned();
     let server: String = stored_servers[server_selection].server.to_owned();

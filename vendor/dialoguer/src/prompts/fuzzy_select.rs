@@ -261,7 +261,19 @@ impl FuzzySelect<'_> {
             }
             term.flush()?;
 
-            match (term.read_key()?, sel, vim_mode) {
+            let key = match term.read_key_raw() {
+                Ok(key) => key,
+                Err(e) => {
+                    term.show_cursor()?;
+                    return Err(e.into());
+                }
+            };
+
+            match (key, sel, vim_mode) {
+                (Key::CtrlC, _, _) => {
+                    term.show_cursor()?;
+                    return Err(io::Error::new(io::ErrorKind::Interrupted, "interrupted").into());
+                }
                 (Key::Escape, _, false) if self.enable_vim_mode => {
                     vim_mode = true;
                 }

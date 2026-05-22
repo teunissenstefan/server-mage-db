@@ -55,13 +55,22 @@ fn main() {
     let binding: String = shellexpand::tilde(config_values["servers_dir"].as_str().unwrap()).to_string();
     let root_environment_dir: &str = binding.as_str();
 
-    let walker: IntoIter = WalkDir::new(root_environment_dir).into_iter();
     let mut environment_selections: Vec<String> = vec![];
+    let mut environment_paths: Vec<String> = vec![];
+
+    let private_path = shellexpand::tilde("~/.config/server/private.json").to_string();
+    if Path::new(&private_path).exists() {
+        environment_selections.push("private".to_string());
+        environment_paths.push(private_path);
+    }
+
+    let walker: IntoIter = WalkDir::new(root_environment_dir).into_iter();
     for entry in walker {
         let dir_entry: DirEntry = entry.unwrap().to_owned();
         if !dir_entry.path().to_str().unwrap().ends_with(".json") { continue; }
 
         environment_selections.push(Path::new(dir_entry.path()).file_stem().unwrap().to_str().unwrap().to_owned());
+        environment_paths.push(dir_entry.path().to_str().unwrap().to_owned());
     }
 
     //Clear screen and put cursor at the beginning
@@ -74,8 +83,7 @@ fn main() {
         .interact()
         .unwrap_or_else(|_| std::process::exit(130));
 
-    let selected_env: String = environment_selections[environment_selection].to_owned();
-    let environment_filename: String = format!("{root_environment_dir}{selected_env}.json");
+    let environment_filename: String = environment_paths[environment_selection].to_owned();
 
     let file: File = File::open(environment_filename)
         .expect("Unable to open environment file as read-only!");

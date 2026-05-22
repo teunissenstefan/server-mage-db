@@ -10,3 +10,6 @@ serde = { version = "1.0.204", features = ["derive"] }
 walkdir = "2"
 shellexpand = "3.1.0"
 toml = "0.8.16"
+
+[patch.crates-io]
+dialoguer = { path = "vendor/dialoguer" }

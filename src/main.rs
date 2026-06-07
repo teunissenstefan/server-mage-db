@@ -46,6 +46,8 @@ impl Server {
 }
 
 fn main() {
+    let json_mode = std::env::args().any(|a| a == "--json");
+
     if !Path::new(&shellexpand::tilde(CONFIG_PATH).to_string()).exists() {
         first_time_setup();
         return;
@@ -132,6 +134,17 @@ fn main() {
     let username: String = stored_servers[server_selection].username.to_owned();
     let server: String = stored_servers[server_selection].server.to_owned();
     let port: u16 = stored_servers[server_selection].port.to_owned();
+
+    if json_mode {
+        let output = serde_json::json!({
+            "username": username,
+            "server": server,
+            "port": port,
+        });
+        println!("{}", output);
+        return;
+    }
+
     let username_server: String = format!("{username}@{server}");
 
     println!("Connection string: ssh {} -p {}", username_server, port);

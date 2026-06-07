@@ -76,7 +76,7 @@ fn main() {
     }
 
     //Clear screen and put cursor at the beginning
-    println!("\x1B[2J\x1B[1;1H");
+    eprint!("\x1B[2J\x1B[1;1H");
 
     let environment_selection: usize = FuzzySelect::with_theme(&ColorfulTheme::default())
         .with_prompt("Select an environment")

@@ -9,6 +9,8 @@ use std::process::Command;
 use toml::Table;
 use walkdir::{DirEntry, IntoIter, WalkDir};
 
+mod update;
+
 const CONFIG_PATH: &'static str = "~/.config/server/config.toml";
 const DEFAULT_PORT: u16 = 22;
 
@@ -47,6 +49,20 @@ impl Server {
 
 fn main() {
     let json_mode = std::env::args().any(|a| a == "--json");
+
+    if std::env::args().any(|a| a == "--version" || a == "-V") {
+        println!("server {}", update::current());
+        return;
+    }
+
+    let update_rx = (!json_mode).then(|| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let current = update::current();
+            let _ = tx.send(update::check(&current));
+        });
+        rx
+    });
 
     if !Path::new(&shellexpand::tilde(CONFIG_PATH).to_string()).exists() {
         first_time_setup();
@@ -143,6 +159,16 @@ fn main() {
         });
         println!("{}", output);
         return;
+    }
+
+    if let Some(rx) = update_rx {
+        if let Ok(Some(latest)) = rx.try_recv() {
+            eprintln!(
+                "server {} is available (you have {}). Run: brew upgrade server-mage-db",
+                latest,
+                update::current()
+            );
+        }
     }
 
     let username_server: String = format!("{username}@{server}");

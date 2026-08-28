@@ -1,0 +1,74 @@
+version: 2
+
+project_name: server
+
+before:
+  hooks:
+    - cargo test --release
+    # The binary reports Cargo.toml's version, not the tag. Refuse to release
+    # if the two disagree. See scripts/check-version.sh.
+    - scripts/check-version.sh {{ .Version }} {{ .IsSnapshot }}
+
+builds:
+  - id: server
+    # Rust builds arrived in goreleaser v2.5. Targets are Rust triples rather
+    # than goos/goarch; goreleaser runs `rustup target add` for each and
+    # cross-compiles them all from one runner with cargo-zigbuild.
+    builder: rust
+    binary: server
+    # Must be set explicitly: goreleaser defaults to plain `cargo build`, which
+    # cannot cross-compile ring's C sources and fails looking for
+    # aarch64-linux-gnu-gcc. zig supplies the cross toolchain.
+    tool: cargo-zigbuild
+    command: build
+    flags:
+      - --release
+    targets:
+      - aarch64-apple-darwin
+      - x86_64-apple-darwin
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-gnu
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+# Casks rather than formulae: goreleaser deprecated `brews` in v2.10, and
+# Homebrew now wants pre-built binaries distributed as casks.
+homebrew_casks:
+  # The cask is named after the repository; the binary it installs is still
+  # `server`, which is what you type.
+  - name: server-mage-db
+    binaries: [server]
+    homepage: https://github.com/epenthesis/server-mage-db
+    description: Fuzzy-select a mage-db-sync server and ssh into it
+    repository:
+      owner: epenthesis
+      name: homebrew-tap
+      # The tap's default branch is master, not main.
+      branch: master
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_msg_template: "server-mage-db {{ .Tag }}"
+    # Casks are downloaded with curl, which sets the macOS quarantine flag.
+    # Without code signing, Gatekeeper then refuses to run the binary. Strip
+    # the flag on install until the release is properly signed and notarized.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/server"]
+          end
